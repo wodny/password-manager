@@ -44,9 +44,15 @@ def generate_password_entries(password_lines):
         description = description.strip()
         yield PasswordEntry(description, password)
 
-def simple_filter(entries, phrase):
+def match_phrases(entry, phrases):
+    for phrase in phrases:
+        if phrase not in entry.description:
+            return False
+    return True
+
+def simple_filter(entries, phrases):
     for entry in entries:
-        if phrase in entry.description:
+        if match_phrases(entry, phrases):
             yield entry
 
 class PasswordEntrySelector:
@@ -70,7 +76,7 @@ class PasswordEntrySelector:
                     return None
             except (ValueError, IndexError, KeyboardInterrupt):
                 return None
-        return entry
+        return self.entries[0]
 
 class Clipboard:
     def get(self, clipboard, selectiondata, info, data):
@@ -93,14 +99,14 @@ class Clipboard:
         print("Done waiting.")
 
 
-if len(sys.argv) != 3:
+if len(sys.argv) < 3:
     exit("Encrypted password file and search phrase required.")
 
-(filename, phrase) = sys.argv[1:]
+(filename, phrases) = (sys.argv[1], sys.argv[2:])
 
 d = DecryptedLinesStreamer(filename)
 s = generate_password_entries(d)
-f = simple_filter(s, phrase)
+f = simple_filter(s, phrases)
 ps = PasswordEntrySelector(f)
 entry = ps.select()
 
