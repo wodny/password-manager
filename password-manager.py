@@ -2,9 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import argparse
 import io
 import gpgme
+
+import pygtk
+pygtk.require('2.0')
 import gtk
+import glib
+
 
 class DecryptedLinesStreamer:
     def __init__(self, filename):
@@ -87,10 +93,18 @@ class Clipboard:
         print("Clipboard contents changed.")
         gtk.main_quit()
 
-    def __init__(self, password):
+    def __init__(self, clipboard_type, password):
+        clipboard_ids = {
+            "primary": gtk.gdk.SELECTION_PRIMARY,
+            "clipboard": gtk.gdk.SELECTION_CLIPBOARD
+        }
+        clipboard_type = clipboard_ids[clipboard_type]
+
         self.password = password
-        self.clipboard = gtk.clipboard_get(gtk.gdk.SELECTION_PRIMARY)
+        self.clipboard = gtk.clipboard_get(clipboard_type)
         self.clipboard.set_with_data((("UTF8_STRING", 0, 0),), self.get, self.clear, None)
+
+    def loop(self):
         print("Waiting for requests...")
         try:
             gtk.main()
@@ -98,17 +112,28 @@ class Clipboard:
             pass
         print("Done waiting.")
 
+def timeout_quit():
+    print("Timeout.")
+    gtk.main_quit()
 
-if len(sys.argv) < 3:
-    exit("Encrypted password file and search phrase required.")
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
+    parser.add_argument("--timeout", "-t", type=int, help="time for accepting requests")
+    parser.add_argument("filename", help="filename of encrypted list")
+    parser.add_argument("pattern", nargs="+", help="pattern to match against")
+    return parser.parse_args()
 
-(filename, phrases) = (sys.argv[1], sys.argv[2:])
+arguments = parse_arguments()
 
-d = DecryptedLinesStreamer(filename)
+d = DecryptedLinesStreamer(arguments.filename)
 s = generate_password_entries(d)
-f = simple_filter(s, phrases)
+f = simple_filter(s, arguments.pattern)
 ps = PasswordEntrySelector(f)
 entry = ps.select()
 
 if entry is not None:
-    Clipboard(entry.password)
+    c = Clipboard(arguments.clipboard, entry.password)
+    if arguments.timeout is not None:
+        glib.timeout_add_seconds(arguments.timeout, timeout_quit)
+    c.loop()
