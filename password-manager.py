@@ -61,12 +61,12 @@ class PasswordEntrySelector:
 
     def select(self):
         found = len(self.entries)
-        print("Found {0} password entries.".format(found))
+        print("Entries found: {0}.".format(found))
         if found == 0:
             return None
+        for i in range(0, len(self.entries)):
+            print("{0:2d}) {1}".format(i+1, self.entries[i].description))
         if found > 1:
-            for i in range(0, len(self.entries)):
-                print("{0:2d}) {1}".format(i+1, self.entries[i].description))
             try:
                 sys.stdout.write("Select an entry: ")
                 i = int(sys.stdin.readline().strip())
