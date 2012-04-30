@@ -3,6 +3,8 @@
 
 import sys
 import argparse
+import textwrap
+
 import io
 import gpgme
 
@@ -23,6 +25,8 @@ class DecryptedLinesStreamer:
             plain = io.BytesIO()
             context.decrypt(cipher, plain)
             for line in plain.getvalue().splitlines():
+                if len(line) == 0:
+                    continue
                 yield line.decode("utf-8")
 
     def next(self):
@@ -117,9 +121,21 @@ def timeout_quit():
     gtk.main_quit()
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=textwrap.dedent("""
+            Searches through an OpenPGP-encrypted file consisting of lines of form:
+            description [description ...] password
+
+            Waits for clipboard contents requests until
+            clipboard owner change or specified timeout.
+            
+            All specified patterns must be found within description tokens.
+            If more than one line matches, selection menu appears.
+        """)
+    )
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
-    parser.add_argument("--timeout", "-t", type=int, help="time for accepting requests")
+    parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
     parser.add_argument("filename", help="filename of encrypted list")
     parser.add_argument("pattern", nargs="+", help="pattern to match against")
     return parser.parse_args()
