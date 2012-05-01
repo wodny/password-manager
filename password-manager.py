@@ -12,6 +12,7 @@ import pygtk
 pygtk.require('2.0')
 import gtk
 import glib
+import gobject
 
 
 class DecryptedLinesStreamer:
@@ -92,21 +93,26 @@ class Clipboard:
     def get(self, clipboard, selectiondata, info, data):
         print("Password request.")
         selectiondata.set_text(self.password)
+        self.requests -= 1
+        if self.requests == 0:
+            print("Request count limit reached.")
+            gobject.idle_add(gtk.main_quit)
     
     def clear(self, clipboard, data):
         print("Clipboard contents changed.")
         gtk.main_quit()
 
-    def __init__(self, clipboard_type, password):
+    def __init__(self, clipboard_type, requests, password):
         clipboard_ids = {
             "primary": gtk.gdk.SELECTION_PRIMARY,
             "clipboard": gtk.gdk.SELECTION_CLIPBOARD
         }
         clipboard_type = clipboard_ids[clipboard_type]
 
-        self.password = password
         self.clipboard = gtk.clipboard_get(clipboard_type)
         self.clipboard.set_with_data((("UTF8_STRING", 0, 0),), self.get, self.clear, None)
+        self.requests = requests
+        self.password = password
 
     def loop(self):
         print("Waiting for requests...")
@@ -128,7 +134,8 @@ def parse_arguments():
             description [description ...] password
 
             Waits for clipboard contents requests until
-            clipboard owner change or specified timeout.
+            clipboard owner change, specified timeout or
+            maximum number of requests is reached.
             
             All specified patterns must be found within description tokens.
             If more than one line matches, selection menu appears.
@@ -136,6 +143,7 @@ def parse_arguments():
     )
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
     parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
+    parser.add_argument("--requests", "-n", type=int, default=-1, help="number of accepted requests before quiting")
     parser.add_argument("filename", help="filename of encrypted list")
     parser.add_argument("pattern", nargs="+", help="pattern to match against")
     return parser.parse_args()
@@ -149,7 +157,7 @@ ps = PasswordEntrySelector(f)
 entry = ps.select()
 
 if entry is not None:
-    c = Clipboard(arguments.clipboard, entry.password)
+    c = Clipboard(arguments.clipboard, arguments.requests, entry.password)
     if arguments.timeout is not None:
         glib.timeout_add_seconds(arguments.timeout, timeout_quit)
     c.loop()
