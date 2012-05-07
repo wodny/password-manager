@@ -82,12 +82,14 @@ class PasswordEntrySelector:
                 sys.stdout.write("Select an entry: ")
                 i = int(sys.stdin.readline().strip())
                 entry = self.entries[i-1]
-                if len(entry.password) == 0:
-                    print("Empty password.")
-                    return None
             except (ValueError, IndexError, KeyboardInterrupt):
                 return None
-        return self.entries[0]
+        else:
+            entry = self.entries[0]
+        if len(entry.password) == 0:
+            print("Empty password.")
+            return None
+        return entry
 
 class Clipboard:
     def get(self, clipboard, selectiondata, info, data):
