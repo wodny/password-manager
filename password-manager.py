@@ -92,6 +92,25 @@ class PasswordEntrySelector:
         return entry
 
 class Clipboard:
+    def __init__(self, clipboard_type):
+        clipboard_ids = {
+            "primary": gtk.gdk.SELECTION_PRIMARY,
+            "clipboard": gtk.gdk.SELECTION_CLIPBOARD
+        }
+        clipboard_type = clipboard_ids[clipboard_type]
+
+        self.clipboard = gtk.clipboard_get(clipboard_type)
+        self.clipboard.set_with_data((("UTF8_STRING", 0, 0),), self.get, self.clear, None)
+
+    def loop(self):
+        print("Waiting for clipboard events...")
+        try:
+            gtk.main()
+        except KeyboardInterrupt, e:
+            print("Done waiting.")
+            raise e
+
+class ClipboardPassword(Clipboard):
     def get(self, clipboard, selectiondata, info, data):
         print("Password request.")
         selectiondata.set_text(self.password)
@@ -105,24 +124,22 @@ class Clipboard:
         gtk.main_quit()
 
     def __init__(self, clipboard_type, requests, password):
-        clipboard_ids = {
-            "primary": gtk.gdk.SELECTION_PRIMARY,
-            "clipboard": gtk.gdk.SELECTION_CLIPBOARD
-        }
-        clipboard_type = clipboard_ids[clipboard_type]
-
-        self.clipboard = gtk.clipboard_get(clipboard_type)
-        self.clipboard.set_with_data((("UTF8_STRING", 0, 0),), self.get, self.clear, None)
+        Clipboard.__init__(self, clipboard_type)
         self.requests = requests
         self.password = password
 
-    def loop(self):
-        print("Waiting for requests...")
-        try:
-            gtk.main()
-        except KeyboardInterrupt:
-            pass
-        print("Done waiting.")
+class ClipboardSelect(Clipboard):
+    def get(self, clipboard, selectiondata, info, data):
+        print("Unexpected clipboard contents request.")
+        selectiondata.set_text("select a pattern\n")
+
+    def clear(self, clipboard, data):
+        print("Clipboard contents changed.")
+        self.text = clipboard.wait_for_text()
+        gtk.main_quit()
+
+    def __init__(self, clipboard_type = "primary"):
+        Clipboard.__init__(self, clipboard_type)
 
 def timeout_quit():
     print("Timeout.")
@@ -143,23 +160,43 @@ def parse_arguments():
             If more than one line matches, selection menu appears.
         """)
     )
+    parser.add_argument("--source", "-s", choices=["arguments", "selection"], default="arguments", help="patterns source")
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
     parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
     parser.add_argument("--requests", "-n", type=int, default=-1, help="number of accepted requests before quiting")
     parser.add_argument("filename", help="filename of encrypted list")
-    parser.add_argument("pattern", nargs="+", help="pattern to match against")
+    parser.add_argument("patterns", nargs="*", help="patterns to match against")
     return parser.parse_args()
 
-arguments = parse_arguments()
 
-d = DecryptedLinesStreamer(arguments.filename)
-s = generate_password_entries(d)
-f = simple_filter(s, arguments.pattern)
-ps = PasswordEntrySelector(f)
-entry = ps.select()
-
-if entry is not None:
-    c = Clipboard(arguments.clipboard, arguments.requests, entry.password)
-    if arguments.timeout is not None:
-        glib.timeout_add_seconds(arguments.timeout, timeout_quit)
-    c.loop()
+if __name__ == "__main__":
+    arguments = parse_arguments()
+    
+    if arguments.source == "arguments":
+        if len(arguments.patterns) == 0:
+            exit("You must specify at least one pattern.")
+        patterns = arguments.patterns
+    elif arguments.source == "selection":
+        cs = ClipboardSelect()
+        try:
+            cs.loop()
+        except KeyboardInterrupt:
+            exit("Nothing to do.")
+        patterns = cs.text.split()
+    else:
+        raise Exception("Unknown patterns source")
+    
+    d = DecryptedLinesStreamer(arguments.filename)
+    s = generate_password_entries(d)
+    f = simple_filter(s, patterns)
+    ps = PasswordEntrySelector(f)
+    entry = ps.select()
+    
+    if entry is not None:
+        c = ClipboardPassword(arguments.clipboard, arguments.requests, entry.password)
+        if arguments.timeout is not None:
+            glib.timeout_add_seconds(arguments.timeout, timeout_quit)
+        try:
+            c.loop()
+        except KeyboardInterrupt:
+            pass
