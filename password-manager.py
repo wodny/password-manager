@@ -213,18 +213,31 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=textwrap.dedent("""
-            Searches through an OpenPGP-encrypted file consisting of lines of form:
+            A tool for easy pasting passwords via an X11 clipboard.
+
+            Searches through an OpenPGP-encrypted text file consisting 
+            of lines of form:
             description [description ...] password
 
-            Waits for clipboard contents requests until
-            clipboard owner change, specified timeout or
-            maximum number of requests is reached.
+            Waits for clipboard contents requests until clipboard owner 
+            change, specified timeout or maximum number of requests is 
+            reached.
             
-            All specified patterns must be found within description tokens.
-            If more than one line matches, selection menu appears.
+            All specified search patterns must be found within          
+            description tokens. If more than one line matches, selection 
+            menu appears. In *tui modes it is a text menu, in *gui modes 
+            a graphical menu appears under the cursor.
+
+            Search patterns may be passed as arguments (argtui and 
+            arggui modes) or using the PRIMARY clipboard (cliptui and 
+            clipgui modes). In clip* modes the manager first waits until 
+            you select some text and then treats it as pattern. This is 
+            useful for example when you sudo on multiple machines 
+            simultaneously - you can select the hostname from a shell 
+            prompt.
         """)
     )
-    parser.add_argument("--mode", "-m", choices=["argtui", "cliptui", "clipgui"], default="argtui", help="interaction mode")
+    parser.add_argument("--mode", "-m", choices=["argtui", "arggui", "cliptui", "clipgui"], default="argtui", help="interaction mode")
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
     parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
     parser.add_argument("--requests", "-n", type=int, default=-1, help="number of accepted requests before quiting")
