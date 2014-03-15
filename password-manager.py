@@ -67,6 +67,9 @@ def simple_filter(entries, phrases):
             yield entry
 
 class PasswordEntrySelector:
+    pass
+
+class PasswordEntrySelectorTUI(PasswordEntrySelector):
     def __init__(self, entries):
         self.entries = list(entries)
 
@@ -90,6 +93,46 @@ class PasswordEntrySelector:
             print("Empty password.")
             return None
         return entry
+
+class PasswordEntrySelectorGUI(PasswordEntrySelector):
+    def __init__(self, entries):
+        self.entry = None
+
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.connect("delete_event", self._delete_event)
+        self.window.connect("destroy", self._destroy)
+
+        box = gtk.VBox()
+        self.window.add(box)
+        box.show()
+
+        for entry in entries:
+            button = gtk.Button(entry.description)
+            button.connect("clicked", self._clicked, entry)
+            button.connect_object("clicked", gtk.Widget.destroy, self.window)
+            box.pack_start(button)
+            button.show()
+
+        screen, x, y, mods = gtk.gdk.display_get_default().get_pointer()
+        self.window.move(x, y)
+        self.window.set_decorated(False)
+        
+        self.window.show()
+
+    def select(self):
+        gtk.main()
+        return self.entry
+
+    def _clicked(self, widget, data=None):
+        self.entry = data
+
+    def _delete_event(self, widget, event, data=None):
+        return False
+
+    def _destroy(self, widget, data=None):
+        gtk.main_quit()
+
+
 
 class Clipboard:
     def __init__(self, clipboard_type):
@@ -160,7 +203,7 @@ def parse_arguments():
             If more than one line matches, selection menu appears.
         """)
     )
-    parser.add_argument("--source", "-s", choices=["arguments", "selection"], default="arguments", help="patterns source")
+    parser.add_argument("--mode", "-m", choices=["argtui", "cliptui", "clipgui"], default="argtui", help="interaction mode")
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
     parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
     parser.add_argument("--requests", "-n", type=int, default=-1, help="number of accepted requests before quiting")
@@ -172,25 +215,28 @@ def parse_arguments():
 if __name__ == "__main__":
     arguments = parse_arguments()
     
-    if arguments.source == "arguments":
+    if arguments.mode.startswith("arg"):
         if len(arguments.patterns) == 0:
             exit("You must specify at least one pattern.")
         patterns = arguments.patterns
-    elif arguments.source == "selection":
+    else:
         cs = ClipboardSelect()
         try:
             cs.loop()
         except KeyboardInterrupt:
             exit("Nothing to do.")
         patterns = cs.text.split()
-    else:
-        raise Exception("Unknown patterns source")
     
     d = DecryptedLinesStreamer(arguments.filename)
     s = generate_password_entries(d)
     f = simple_filter(s, patterns)
-    ps = PasswordEntrySelector(f)
-    entry = ps.select()
+
+    if arguments.mode.endswith("tui"):
+        ps = PasswordEntrySelectorTUI(f)
+        entry = ps.select()
+    else:
+        ps = PasswordEntrySelectorGUI(f)
+        entry = ps.select()
     
     if entry is not None:
         c = ClipboardPassword(arguments.clipboard, arguments.requests, entry.password)
