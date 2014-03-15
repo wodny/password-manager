@@ -67,12 +67,10 @@ def simple_filter(entries, phrases):
             yield entry
 
 class PasswordEntrySelector:
-    pass
-
-class PasswordEntrySelectorTUI(PasswordEntrySelector):
     def __init__(self, entries):
         self.entries = list(entries)
 
+class PasswordEntrySelectorTUI(PasswordEntrySelector):
     def select(self):
         found = len(self.entries)
         print("Entries found: {0}.".format(found))
@@ -96,9 +94,13 @@ class PasswordEntrySelectorTUI(PasswordEntrySelector):
 
 class PasswordEntrySelectorGUI(PasswordEntrySelector):
     def __init__(self, entries):
+        PasswordEntrySelector.__init__(self, entries)
+
         self.entry = None
 
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.set_border_width(10)
+
         self.window.connect("delete_event", self._delete_event)
         self.window.connect("destroy", self._destroy)
 
@@ -106,7 +108,16 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector):
         self.window.add(box)
         box.show()
 
-        for entry in entries:
+        label = gtk.Label("Entries found: {0}.".format(len(self.entries)))
+        box.pack_start(label)
+        label.show()
+
+        if(len(self.entries) != 0):
+            separator = gtk.HSeparator()
+            box.pack_start(separator, padding=5)
+            separator.show()
+
+        for entry in self.entries:
             button = gtk.Button(entry.description)
             button.connect("clicked", self._clicked, entry)
             button.connect_object("clicked", gtk.Widget.destroy, self.window)
@@ -116,16 +127,26 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector):
         screen, x, y, mods = gtk.gdk.display_get_default().get_pointer()
         self.window.move(x, y)
         self.window.set_decorated(False)
+
+        if(len(self.entries) == 0):
+            glib.timeout_add_seconds(1, self._timeout)
         
         self.window.show()
 
     def select(self):
-        gtk.main()
+        print("Select password via GUI.")
+        try:
+            gtk.main()
+        except KeyboardInterrupt:
+            pass
         return self.entry
 
     def _clicked(self, widget, data=None):
         self.entry = data
 
+    def _timeout(self):
+        self.window.destroy()
+    
     def _delete_event(self, widget, event, data=None):
         return False
 
