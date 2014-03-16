@@ -33,7 +33,7 @@ Features
     * uses GPGME (interface to GnuPG) for decryption,
     * can read a search pattern from the PRIMARY clipboard,
     * uses PyGTK for clipboard manipulation,
-    * user PyGTK to display a password selection GUI,
+    * uses PyGTK to display a password selection GUI,
     * clipboard selection (PRIMARY or CLIPBOARD).
 
 Example

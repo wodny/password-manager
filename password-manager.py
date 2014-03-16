@@ -66,9 +66,11 @@ def simple_filter(entries, phrases):
         if match_phrases(entry, phrases):
             yield entry
 
+
 class PasswordEntrySelector:
     def __init__(self, entries):
         self.entries = list(entries)
+
 
 class PasswordEntrySelectorTUI(PasswordEntrySelector):
     def select(self):
@@ -92,11 +94,11 @@ class PasswordEntrySelectorTUI(PasswordEntrySelector):
             return None
         return entry
 
-class PasswordEntrySelectorGUI(PasswordEntrySelector):
-    def __init__(self, entries):
-        PasswordEntrySelector.__init__(self, entries)
 
-        self.entry = None
+class Popup:
+    def __init__(self, labeltext, selfdestruct=0, gtkquit=False):
+        self.selfdestruct = selfdestruct
+        self.gtkquit = gtkquit
 
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_border_width(10)
@@ -104,34 +106,55 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector):
         self.window.connect("delete_event", self._delete_event)
         self.window.connect("destroy", self._destroy)
 
-        box = gtk.VBox()
-        self.window.add(box)
-        box.show()
+        self.box = gtk.VBox()
+        self.window.add(self.box)
+        self.box.show()
 
-        label = gtk.Label("Entries found: {0}.".format(len(self.entries)))
-        box.pack_start(label)
+        label = gtk.Label(labeltext)
+        self.box.pack_start(label)
         label.show()
+
+    def show(self):
+        screen, x, y, mods = gtk.gdk.display_get_default().get_pointer()
+        self.window.move(x, y)
+        self.window.set_decorated(False)
+
+        if self.selfdestruct:
+            glib.timeout_add_seconds(self.selfdestruct, self._timeout)
+
+        self.window.show()
+
+    def _timeout(self):
+        self.window.destroy()
+    
+    def _delete_event(self, widget, event, data=None):
+        return False
+
+    def _destroy(self, widget, data=None):
+        if self.gtkquit:
+            gtk.main_quit()
+
+
+class PasswordEntrySelectorGUI(PasswordEntrySelector, Popup):
+    def __init__(self, entries):
+        PasswordEntrySelector.__init__(self, entries)
+        labeltext = "Entries found: {0}.".format(len(self.entries))
+        Popup.__init__(self, labeltext, 1 if len(self.entries) == 0 else 0, True)
+        self.entry = None
 
         if(len(self.entries) != 0):
             separator = gtk.HSeparator()
-            box.pack_start(separator, padding=5)
+            self.box.pack_start(separator, padding=5)
             separator.show()
 
         for entry in self.entries:
             button = gtk.Button(entry.description)
             button.connect("clicked", self._clicked, entry)
             button.connect_object("clicked", gtk.Widget.destroy, self.window)
-            box.pack_start(button)
+            self.box.pack_start(button)
             button.show()
 
-        screen, x, y, mods = gtk.gdk.display_get_default().get_pointer()
-        self.window.move(x, y)
-        self.window.set_decorated(False)
-
-        if(len(self.entries) == 0):
-            glib.timeout_add_seconds(1, self._timeout)
-        
-        self.window.show()
+        self.show()
 
     def select(self):
         print("Select password via GUI.")
@@ -143,15 +166,6 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector):
 
     def _clicked(self, widget, data=None):
         self.entry = data
-
-    def _timeout(self):
-        self.window.destroy()
-    
-    def _delete_event(self, widget, event, data=None):
-        return False
-
-    def _destroy(self, widget, data=None):
-        gtk.main_quit()
 
 
 
@@ -205,9 +219,12 @@ class ClipboardSelect(Clipboard):
     def __init__(self, clipboard_type = "primary"):
         Clipboard.__init__(self, clipboard_type)
 
-def timeout_quit():
+def timeout_quit(usegui):
     print("Timeout.")
-    gtk.main_quit()
+    if usegui:
+        Popup("Timeout", 1, True).show()
+    else:
+        gtk.main_quit()
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -248,6 +265,8 @@ def parse_arguments():
 
 if __name__ == "__main__":
     arguments = parse_arguments()
+
+    usegui = arguments.mode.endswith("gui")
     
     if arguments.mode.startswith("arg"):
         if len(arguments.patterns) == 0:
@@ -265,17 +284,17 @@ if __name__ == "__main__":
     s = generate_password_entries(d)
     f = simple_filter(s, patterns)
 
-    if arguments.mode.endswith("tui"):
-        ps = PasswordEntrySelectorTUI(f)
+    if usegui:
+        ps = PasswordEntrySelectorGUI(f)
         entry = ps.select()
     else:
-        ps = PasswordEntrySelectorGUI(f)
+        ps = PasswordEntrySelectorTUI(f)
         entry = ps.select()
     
     if entry is not None:
         c = ClipboardPassword(arguments.clipboard, arguments.requests, entry.password)
         if arguments.timeout is not None:
-            glib.timeout_add_seconds(arguments.timeout, timeout_quit)
+            glib.timeout_add_seconds(arguments.timeout, timeout_quit, usegui)
         try:
             c.loop()
         except KeyboardInterrupt:
