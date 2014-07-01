@@ -258,6 +258,7 @@ def parse_arguments():
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
     parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
     parser.add_argument("--requests", "-n", type=int, default=-1, help="number of accepted requests before quiting")
+    parser.add_argument("--newline", "-l", action="store_true", help="add new line to the password")
     parser.add_argument("filename", help="filename of encrypted list")
     parser.add_argument("patterns", nargs="*", help="patterns to match against")
     return parser.parse_args()
@@ -292,7 +293,8 @@ if __name__ == "__main__":
         entry = ps.select()
     
     if entry is not None:
-        c = ClipboardPassword(arguments.clipboard, arguments.requests, entry.password)
+        password = entry.password + "\n" if arguments.newline else entry.password
+        c = ClipboardPassword(arguments.clipboard, arguments.requests, password)
         if arguments.timeout is not None:
             glib.timeout_add_seconds(arguments.timeout, timeout_quit, usegui)
         try:
