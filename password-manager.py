@@ -4,6 +4,7 @@
 import sys
 import argparse
 import textwrap
+import re
 
 import io
 import gpgme
@@ -14,6 +15,7 @@ import gtk
 import glib
 import gobject
 
+__version__ = "0.23"
 
 class DecryptedLinesStreamer:
     def __init__(self, filename):
@@ -254,11 +256,14 @@ def parse_arguments():
             prompt.
         """)
     )
+    parser.add_argument('--version', action='version', version="%(prog)s {0}".format(__version__))
     parser.add_argument("--mode", "-m", choices=["argtui", "arggui", "cliptui", "clipgui"], default="argtui", help="interaction mode")
     parser.add_argument("--clipboard", "-c", choices=["primary", "clipboard"], default="primary")
     parser.add_argument("--timeout", "-t", type=int, help="application quits after this timeout")
     parser.add_argument("--requests", "-n", type=int, default=-1, help="number of accepted requests before quiting")
     parser.add_argument("--newline", "-l", action="store_true", help="add new line to the password")
+    parser.add_argument("--regex", "-r", help="regex to get a search pattern from clipboard text (e.g. hostname)")
+    parser.add_argument("--regex-group", "-g", type=int, default=1, help="regex group to use as a search pattern")
     parser.add_argument("filename", help="filename of encrypted list")
     parser.add_argument("patterns", nargs="*", help="patterns to match against")
     return parser.parse_args()
@@ -279,7 +284,18 @@ if __name__ == "__main__":
             cs.loop()
         except KeyboardInterrupt:
             exit("Nothing to do.")
-        patterns = cs.text.split()
+        if arguments.regex:
+            try:
+                regex = re.compile(arguments.regex)
+            except re.error, e:
+                exit("regex error: {}".format(e))
+            match = regex.search(cs.text)
+            if match:
+                patterns = [match.group(arguments.regex_group)]
+            else:
+                patterns = cs.text.split()
+        else:
+            patterns = cs.text.split()
     
     d = DecryptedLinesStreamer(arguments.filename)
     s = generate_password_entries(d)
