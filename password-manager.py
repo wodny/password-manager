@@ -5,6 +5,7 @@ import sys
 import argparse
 import textwrap
 import re
+import copy
 
 import io
 import gpgme
@@ -150,11 +151,26 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector, Popup):
             separator.show()
 
         for entry in self.entries:
+            hbox = gtk.HBox()
+
             button = gtk.Button(entry.description)
             button.connect("clicked", self._clicked, entry)
             button.connect_object("clicked", gtk.Widget.destroy, self.window)
-            self.box.pack_start(button)
+            hbox.pack_start(button, expand = True)
             button.show()
+
+            entry_newline = copy.copy(entry)
+            entry_newline.description = "↵"
+            entry_newline.password += '\n'
+
+            button = gtk.Button(entry_newline.description)
+            button.connect("clicked", self._clicked, entry_newline)
+            button.connect_object("clicked", gtk.Widget.destroy, self.window)
+            hbox.pack_start(button)
+            button.show()
+
+            self.box.pack_start(hbox)
+            hbox.show()
 
         self.show()
 
