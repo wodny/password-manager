@@ -150,13 +150,13 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector, Popup):
             self.box.pack_start(separator, padding=5)
             separator.show()
 
-        for entry in self.entries:
-            hbox = gtk.HBox()
+        table = gtk.Table()
 
+        for i, entry in enumerate(self.entries):
             button = gtk.Button(entry.description)
             button.connect("clicked", self._clicked, entry)
             button.connect_object("clicked", gtk.Widget.destroy, self.window)
-            hbox.pack_start(button, expand = True)
+            table.attach(button, 0, 1, i, i+1)
             button.show()
 
             entry_newline = copy.copy(entry)
@@ -166,12 +166,11 @@ class PasswordEntrySelectorGUI(PasswordEntrySelector, Popup):
             button = gtk.Button(entry_newline.description)
             button.connect("clicked", self._clicked, entry_newline)
             button.connect_object("clicked", gtk.Widget.destroy, self.window)
-            hbox.pack_start(button)
+            table.attach(button, 1, 2, i, i+1)
             button.show()
 
-            self.box.pack_start(hbox)
-            hbox.show()
-
+        self.box.pack_start(table)
+        table.show()
         self.show()
 
     def select(self):
