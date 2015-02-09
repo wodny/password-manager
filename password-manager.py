@@ -119,6 +119,8 @@ class Popup:
 
     def show(self):
         screen, x, y, mods = gtk.gdk.display_get_default().get_pointer()
+        width, height = self.window.get_size()
+        x = max(0, x - width * 2 / 3)
         self.window.move(x, y)
         self.window.set_decorated(False)
 
