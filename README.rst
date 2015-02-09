@@ -56,4 +56,9 @@ Example
     $ ./password-manager.py passwords.gpg batmobile 1
     $ ./password-manager.py -m clipgui -t 10 -n 1 passwords.gpg
 
+    # Select a username@hostname string in your terminal.
+    # The password manager will cut just the hostname
+    # using a regexp and then search for the right password
+    $ ./password-manager.py -m clipgui -r "@([^:]+):?"
+
 .. vi: ft=rst
