@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
+import signal
 import argparse
 import textwrap
 import re
@@ -16,7 +18,7 @@ import gtk
 import glib
 import gobject
 
-__version__ = "0.23"
+__version__ = "0.28"
 
 class DecryptedLinesStreamer:
     def __init__(self, filename):
@@ -245,6 +247,28 @@ def timeout_quit(usegui):
     else:
         gtk.main_quit()
 
+def hup_agent():
+    agent = os.getenv("GPG_AGENT_INFO")
+    if not agent:
+        print("GPG agent environment variable not found.")
+        return False
+
+    try:
+        _, pid, v = agent.rsplit(":", 2)
+        pid = int(pid)
+    except ValueError:
+        print("Failed to parse GPG agent environment variable.")
+        return False
+    
+    try:
+        os.kill(pid, signal.SIGHUP)
+    except OSError:
+        print("Failed to HUP GPG agent.")
+        return False
+
+    print("Sent HUP to GPG agent (pid = {0}).".format(pid))
+    return True
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -281,13 +305,21 @@ def parse_arguments():
     parser.add_argument("--newline", "-l", action="store_true", help="add new line to the password")
     parser.add_argument("--regex", "-r", help="regex to get a search pattern from clipboard text (e.g. hostname)")
     parser.add_argument("--regex-group", "-g", type=int, default=1, help="regex group to use as a search pattern")
-    parser.add_argument("filename", help="filename of encrypted list")
+    parser.add_argument("--flush-now", "-k", action="store_true", help="flush cached passphrases at startup (HUP gpg-daemon)")
+    parser.add_argument("--flush", "-f", action="store_true", help="flush cached passphrases at shutdown (HUP gpg-daemon)")
+    parser.add_argument("filename", nargs="?", help="filename of encrypted list")
     parser.add_argument("patterns", nargs="*", help="patterns to match against")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     arguments = parse_arguments()
+
+    if arguments.flush_now:
+        exit(hup_agent() == False)
+
+    if not arguments.filename:
+        exit("You must specify the encrypted file.")
 
     usegui = arguments.mode.endswith("gui")
     
@@ -334,3 +366,6 @@ if __name__ == "__main__":
             c.loop()
         except KeyboardInterrupt:
             pass
+
+    if arguments.flush:
+        exit(hup_agent() == False)
