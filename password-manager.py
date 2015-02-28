@@ -3,6 +3,7 @@
 
 import sys
 import os
+import socket
 import signal
 import argparse
 import textwrap
@@ -18,7 +19,7 @@ import gtk
 import glib
 import gobject
 
-__version__ = "0.28"
+__version__ = "0.29"
 
 class DecryptedLinesStreamer:
     def __init__(self, filename):
@@ -247,27 +248,48 @@ def timeout_quit(usegui):
     else:
         gtk.main_quit()
 
-def hup_agent():
+def get_agent():
     agent = os.getenv("GPG_AGENT_INFO")
     if not agent:
-        print("GPG agent environment variable not found.")
-        return False
+        raise ValueError
 
-    try:
-        _, pid, v = agent.rsplit(":", 2)
-        pid = int(pid)
-    except ValueError:
-        print("Failed to parse GPG agent environment variable.")
-        return False
-    
-    try:
-        os.kill(pid, signal.SIGHUP)
-    except OSError:
-        print("Failed to HUP GPG agent.")
-        return False
+    # These two lines can also throw ValueError
+    sock, pid, v = agent.rsplit(":", 2)
+    pid = int(pid)
+    return (sock, pid, v)
 
-    print("Sent HUP to GPG agent (pid = {0}).".format(pid))
+def clear_passphrases(dialog = True, hup = False):
+    try:
+        if dialog: clear_passphrases_dialog()
+        if hup: clear_passphrases_hup()
+    except ValueError, OSError:
+        print("Failed to clear passphrases.")
+        return False
+    print("Probably cleared passphrases.")
     return True
+
+def clear_passphrases_dialog():
+    context = gpgme.Context()
+    fprs = set()
+    for key in context.keylist(None, True):
+        fprs |= set((sk.fpr for sk in key.subkeys))
+    sockpath, _, _ = get_agent()
+    sock = socket.socket(socket.AF_UNIX)
+    sock.connect(sockpath)
+    f = io.open(sock.fileno())
+    if not f.readline().startswith("OK"):
+        raise ValueError("No greeting")
+    for fpr in fprs:
+        print("Clearing passphrase for {0}...".format(fpr))
+        sock.send("CLEAR_PASSPHRASE {0}\n".format(fpr))
+        if not f.readline().startswith("OK"):
+            raise ValueError("Bad response")
+    print("Sent request to clear {0} passphrases.".format(len(fprs)))
+
+def clear_passphrases_hup():
+    _, pid, _ = get_agent()
+    os.kill(pid, signal.SIGHUP)
+    print("Sent HUP to GPG agent (pid = {0}).".format(pid))
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -305,8 +327,9 @@ def parse_arguments():
     parser.add_argument("--newline", "-l", action="store_true", help="add new line to the password")
     parser.add_argument("--regex", "-r", help="regex to get a search pattern from clipboard text (e.g. hostname)")
     parser.add_argument("--regex-group", "-g", type=int, default=1, help="regex group to use as a search pattern")
-    parser.add_argument("--flush-now", "-k", action="store_true", help="flush cached passphrases at startup (HUP gpg-daemon)")
-    parser.add_argument("--flush", "-f", action="store_true", help="flush cached passphrases at shutdown (HUP gpg-daemon)")
+    parser.add_argument("--hup", action="store_true", help="HUP GPG agent if flushing cached passphrases")
+    parser.add_argument("--flush-now", "-k", action="store_true", help="flush cached passphrases at startup")
+    parser.add_argument("--flush", "-f", action="store_true", help="flush cached passphrases at shutdown")
     parser.add_argument("filename", nargs="?", help="filename of encrypted list")
     parser.add_argument("patterns", nargs="*", help="patterns to match against")
     return parser.parse_args()
@@ -316,7 +339,7 @@ if __name__ == "__main__":
     arguments = parse_arguments()
 
     if arguments.flush_now:
-        exit(hup_agent() == False)
+        exit(clear_passphrases(hup = arguments.hup) == False)
 
     if not arguments.filename:
         exit("You must specify the encrypted file.")
@@ -368,4 +391,4 @@ if __name__ == "__main__":
             pass
 
     if arguments.flush:
-        exit(hup_agent() == False)
+        exit(clear_passphrases(hup = arguments.hup) == False)
