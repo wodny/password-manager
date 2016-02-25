@@ -106,7 +106,7 @@ class Popup:
         self.selfdestruct = selfdestruct
         self.gtkquit = gtkquit
 
-        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window = gtk.Window(gtk.WINDOW_POPUP)
         self.window.set_border_width(10)
 
         self.window.connect("delete_event", self._delete_event)
