@@ -124,6 +124,7 @@ class Popup:
         screen, x, y, mods = gtk.gdk.display_get_default().get_pointer()
         width, height = self.window.get_size()
         x = max(0, x - width * 2 / 3)
+        y = min(y, screen.get_height() - height - 10)
         self.window.move(x, y)
         self.window.set_decorated(False)
 
