@@ -9,17 +9,25 @@ import argparse
 import textwrap
 import re
 import copy
-
 import io
-import gpgme
 
+# new name of the gpgme module
+import gpg as gpgme
+
+# This will not become a GTK3 GI code until gtk_clipboard_set_with_data() is
+# available as one of the following entities:
+# - a GI repository function,
+# - a function ported from SugarLabs,
+# - a function ported from PyGTK,
+# - a specialized function called from C module.
+# See https://lazka.github.io/pgi-docs/index.html#Gtk-3.0/mapping.html
 import pygtk
 pygtk.require('2.0')
 import gtk
 import glib
 import gobject
 
-__version__ = "0.29"
+__version__ = "0.30"
 
 class DecryptedLinesStreamer:
     def __init__(self, filename):
@@ -29,9 +37,8 @@ class DecryptedLinesStreamer:
     def __generator(self):
         with io.open(self.filename, mode="rb") as cipher:
             context = gpgme.Context()
-            plain = io.BytesIO()
-            context.decrypt(cipher, plain)
-            for line in plain.getvalue().splitlines():
+            plain, _, _ = context.decrypt(cipher)
+            for line in plain.splitlines():
                 if len(line) == 0:
                     continue
                 yield line.decode("utf-8")
